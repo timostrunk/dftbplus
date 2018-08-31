@@ -172,6 +172,9 @@ contains
     !> locality measure for the wavefunction
     real(dp) :: localisation
 
+    !! dirty hack density.nhr: Spin indexer
+    integer :: iS
+
     call initGeoOptParameters(tCoordOpt, nGeoSteps, tGeomEnd, tCoordStep, tStopDriver, iGeoStep,&
         & iLatGeoStep)
 
@@ -335,6 +338,12 @@ contains
         end if
 
       end do lpSCC
+      !! Dirty hack for density matrix writing
+      do iS = 1, nSpin
+        call writeSparseAsSquare(env, "density" // i2c(iS) // ".nhr", &
+            & rhoPrim(:,iS), neighbourList%iNeighbour, nNeighbourSK, &
+            & denseDesc%iAtomStart, iSparseStart, img2CentCell)
+      end do
       call env%globalTimer%stopTimer(globalTimers%scc)
 
       call env%globalTimer%startTimer(globalTimers%postSCC)
