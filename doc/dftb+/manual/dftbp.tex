@@ -524,7 +524,7 @@ file \verb|md.out| (see appendix \ref{sec:md.out}).
   \is{False}, forces will be calculated using the non-converged charges and the
   molecular dynamics continues. In this case you should consider using
   \is{ForceEvaluation = 'Dynamics'} (or \is{ForceEvaluation = 'DynamicsT0'}) in
-  the \is{Dftb} block as it gives more accurate forces for non-converged
+  the \is{DFTB} block as it gives more accurate forces for non-converged
   charges.
 
 \item[\is{Xlbomd}] If present, extended Lagrangian type molecular dynamics
@@ -2682,6 +2682,7 @@ This block collects some global options for the run.
   \kwl{ReadChargesAsText}{kw:dftbp.ReadChargesAsText} & l &
   ReadInitialCharges = Yes & No & \\
   \kwl{WriteChargesAsText}{kw:dftbp.WriteChargesAsText} & l & & No & \\
+  \kw{SkipChargeTest} & l & ReadInitialCharges = Yes & No & \\
 \end{ptable}
 \begin{description}
 
@@ -2767,6 +2768,17 @@ This block collects some global options for the run.
 \item[\is{WriteChargesAsText}] If \is{No}, the program stores charges in the
   binary file \verb|charges.bin|, while if \is{Yes} then \verb|charges.dat|
   contains text of this data. See section \ref{sec:charges.bin}.
+
+\item[\is{SkipChargeTest}] If \is{Yes}, testing of whether the charges read from
+  file match the total charge (and magnetisation) specified in the {\dftbp}
+  input (if relevant) is performed. Skipping this test (setting to \is{No}) may
+  be useful if restarting from a charges generated for a similar system with
+  slightly different total charge or magnetisation. Similarly, in the event of
+  serious instabilities in the SCC cycle, the generated charge restart file may
+  fall outside of the check-sum tolerances, hence this option allows a
+  re-start. Finally, in the case of user edited \verb|charges.dat| file (see
+  section~\ref{sec:charges.bin}), the check-sum this option removed the
+  requirement that the checksum values in the file match the charges.
 
 \end{description}
 
