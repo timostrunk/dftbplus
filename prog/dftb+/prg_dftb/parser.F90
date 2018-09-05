@@ -1970,6 +1970,15 @@ contains
       end if
     end if
 
+    ! ECPEnv
+    ctrl%tECPEnv = .false.
+    call getChildValue(node, "ECPEnv", value, child=child, &
+        &allowEmptyValue=.true., dummyValue=.false.)
+    if (associated(value)) then
+      ctrl%tECPEnv = .true.
+      call readECPENv(child, ctrl)
+    end if
+
     call readDifferentiation(node, ctrl)
 
     if (ctrl%tSCC) then ! Force type
@@ -2730,6 +2739,42 @@ contains
     end if
 
   end subroutine readOptions
+
+
+  !> Reads Electric Core Potential Environment input
+  subroutine readECPEnv(node, input)
+
+    !> Node to parse
+    type(fnode), pointer :: node
+
+    !> dispersion data on exit
+    type(control), intent(out) :: input
+
+    type(fnode), pointer :: child, tmp, value
+    type(string) :: buffer
+    integer :: iSp1
+
+    !! Read environment geometry
+    call getChild(node, "Geometry", child)
+    call getChildValue(child, "", value, child=tmp)
+    call getNodeName(value, buffer)
+    select case (char(buffer))
+    case ("genformat")
+      call readTGeometryGen(value, input%ECPEnvGeo)
+    case default
+      call setUnprocessed(value)
+      call readTGeometryHSD(tmp, input%ECPEnvGeo)
+    end select
+    !! Read parameters
+    call getChild(node, 'Parameters', child, requested=.true.)
+    allocate(input%ECPEnvParam(2, input%ECPEnvGeo%nSpecies))
+    input%ECPEnvParam(:,:) = 0.0_dp
+    do iSp1 = 1, input%ECPEnvGeo%nSpecies
+      call getChildValue(child, input%ECPEnvGeo%speciesNames(iSp1),&
+          & input%ECPEnvParam(1:2, iSp1))
+    end do
+
+  end subroutine readECPEnv
 
 
   !> Reads in dispersion related settings

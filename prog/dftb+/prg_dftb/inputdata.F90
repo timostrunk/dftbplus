@@ -15,6 +15,7 @@ module inputdata_module
   use message
   use dispersions, only : DispersionInp
   use linresp_module, only : linrespini
+  use ecpenv, only: TECPEnvInp
   use slakocont
   use commontypes
   use repcont
@@ -388,10 +389,8 @@ module inputdata_module
     logical :: tWriteRealHS = .false.
     logical :: tMinMemory = .false.
 
-
     !> Dispersion related stuff
     type(DispersionInp), allocatable :: dispInp
-
 
     !> Local potentials
     real(dp), allocatable :: chrgConstr(:,:)
@@ -401,6 +400,12 @@ module inputdata_module
     !> 3rd order
     real(dp), allocatable :: hubDerivs(:,:)
     logical :: t3rd, t3rdFull
+
+
+    !> Electric Core Potential Environment
+    logical ::  tECPEnv
+    real(dp), allocatable :: ECPEnvParam(:,:)
+    type(TGeometry) :: ECPEnvGeo
 
 
     !> XLBOMD

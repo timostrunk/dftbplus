@@ -60,6 +60,7 @@ module initprogram
   use dftbplusu
   use dispersions
   use thirdorder_module
+  use ecpenv
   use linresp_module
   use stress
   use orbitalequiv
@@ -594,7 +595,6 @@ module initprogram
   !> data structure for 3rd order
   type(ThirdOrder), allocatable :: thirdOrd
 
-
   !> Calculate Casida linear response excitations
   logical :: tLinResp
 
@@ -879,6 +879,11 @@ contains
     ! Damped interactions
     logical, allocatable, target :: tDampedShort(:)
     type(ThirdOrderInp) :: thirdInp
+
+    !> Electric Core Potential Environment
+    type(TECPEnv) :: ECPEnv
+    type(TECPEnvInp) :: ECPEnvInp
+    logical :: tecp
 
     ! PDOS stuff
     integer :: iReg, nAtomRegion, nOrbRegion, iTmp
@@ -1197,6 +1202,17 @@ contains
         call ThirdOrder_init(thirdOrd, thirdInp)
         mCutOff = max(mCutOff, thirdOrd%getCutOff())
       end if
+    end if
+
+    ! Initialize ECPEnv module
+    tecp = input%ctrl%tECPEnv
+    if (tecp) then
+      ECPEnvInp%nAtom = size(orb%nOrbAtom)
+      ECPEnvInp%nSpecies = size(orb%nOrbSpecies)
+      allocate(ECPEnvInp%param(2, size(input%ctrl%ECPEnvParam, dim=2)))
+      ECPEnvInp%param(:,:) = input%ctrl%ECPEnvParam(:,:)
+      ECPEnvInp%envGeo => input%ctrl%ECPEnvGeo
+      call ECPEnv_init(ECPEnv, ECPEnvInp)
     end if
 
     ! Initial coordinates

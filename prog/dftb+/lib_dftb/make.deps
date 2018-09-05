@@ -93,6 +93,11 @@ dispuffdata.o = dispuffdata.o $(_mod_message) $(_mod_accuracy) $(_mod_constants)
 _mod_dispuffdata: dispuffdata.o
 _mod_dispuffdata = $(dispuffdata.o)
 
+ecpenv.o: _mod_assert common.fypp _mod_accuracy _mod_commontypes _mod_typegeometry
+ecpenv.o = ecpenv.o $(_mod_assert) $(common.fypp) $(_mod_accuracy) $(_mod_commontypes) $(_mod_typegeometry)
+_mod_ecpenv: ecpenv.o
+_mod_ecpenv = $(ecpenv.o)
+
 elecconstraints.o: _mod_accuracy _mod_commontypes common.fypp _mod_assert _mod_angmomentum
 elecconstraints.o = elecconstraints.o $(_mod_accuracy) $(_mod_commontypes) $(common.fypp) $(_mod_assert) $(_mod_angmomentum)
 _mod_elecconstraints: elecconstraints.o
