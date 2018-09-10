@@ -1933,6 +1933,21 @@ contains
       call error("Lattice optimization only applies for periodic structures.")
     end if
 
+    ! ECPEnv
+    ctrl%tEcp = .false.
+    call getChildValue(node, "ECPEnvironment", ctrl%tEcp, .false.)
+    if (ctrl%tEcp) then
+      if (geo%tPeriodic) then
+        call error("ECP Environment does not support periodic systems.")
+      else
+        call getChildValue(node, "ECPEnv", value, child=child, &
+            &allowEmptyValue=.true., dummyValue=.false.)
+        if (associated(value)) then
+          call readECPENv(child, ctrl)
+        end if
+      end if
+    end if
+
     ! Third order stuff
     ctrl%t3rd = .false.
     ctrl%t3rdFull = .false.
@@ -1968,15 +1983,6 @@ contains
           ctrl%thirdOrderOn(:,2) = ctrl%hubDerivs(1, geo%species)
         end if
       end if
-    end if
-
-    ! ECPEnv
-    ctrl%tECPEnv = .false.
-    call getChildValue(node, "ECPEnv", value, child=child, &
-        &allowEmptyValue=.true., dummyValue=.false.)
-    if (associated(value)) then
-      ctrl%tECPEnv = .true.
-      call readECPENv(child, ctrl)
     end if
 
     call readDifferentiation(node, ctrl)
@@ -2747,8 +2753,8 @@ contains
     !> Node to parse
     type(fnode), pointer :: node
 
-    !> dispersion data on exit
-    type(control), intent(out) :: input
+    !> ECPEnv data on exit
+    type(control), intent(inout) :: input
 
     type(fnode), pointer :: child, tmp, value
     type(string) :: buffer
@@ -2765,6 +2771,9 @@ contains
       call setUnprocessed(value)
       call readTGeometryHSD(tmp, input%ECPEnvGeo)
     end select
+    if (input%ECPEnvGeo%tPeriodic) then
+      call error("Periodic ECPEnv geometries are not supported!")
+    end if
     !! Read parameters
     call getChild(node, 'Parameters', child, requested=.true.)
     allocate(input%ECPEnvParam(2, input%ECPEnvGeo%nSpecies))

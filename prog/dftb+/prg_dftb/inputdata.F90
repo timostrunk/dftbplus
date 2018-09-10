@@ -403,7 +403,7 @@ module inputdata_module
 
 
     !> Electric Core Potential Environment
-    logical ::  tECPEnv
+    logical ::  tecp
     real(dp), allocatable :: ECPEnvParam(:,:)
     type(TGeometry) :: ECPEnvGeo
 

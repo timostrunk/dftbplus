@@ -59,6 +59,7 @@ module main
   use dispersions, only : DispersionIface
   use xmlf90
   use thirdorder_module, only : ThirdOrder
+  use ecpenv, only: TECPEnv
   use simplealgebra
   use message
   use repcont
@@ -209,9 +210,10 @@ contains
 
       if (tCoordsChanged) then
         call handleCoordinateChange(env, coord0, latVec, invLatVec, species0, mCutoff, repCutoff,&
-            & skCutoff, orb, tPeriodic, sccCalc, dispersion, thirdOrd, img2CentCell, iCellVec,&
-            & neighbourList, nAllAtom, coord0Fold, coord, species, rCellVec, nAllOrb, nNeighbourSK,&
-            & nNeighbourRep, ham, over, H0, rhoPrim, iRhoPrim, iHam, ERhoPrim, iSparseStart)
+            & skCutoff, orb, tPeriodic, sccCalc, dispersion, thirdOrd, ECPEnv, img2CentCell,&
+            & iCellVec, neighbourList, nAllAtom, coord0Fold, coord, species, rCellVec, nAllOrb,&
+            & nNeighbourSK, nNeighbourRep, ham, over, H0, rhoPrim, iRhoPrim, iHam, ERhoPrim,&
+            & iSparseStart)
       end if
 
       if (tSccCalc) then
@@ -304,8 +306,8 @@ contains
 
         call getEnergies(sccCalc, qOutput, q0, chargePerShell, species, tEField, tXlbomd,&
             & tDftbU, tDualSpinOrbit, rhoPrim, H0, orb, neighbourList, nNeighbourSK, img2CentCell,&
-            & iSparseStart, cellVol, extPressure, TS, potential, energy, thirdOrd, qBlockOut,&
-            & qiBlockOut, nDftbUFunc, UJ, nUJ, iUJ, niUJ, xi)
+            & iSparseStart, cellVol, extPressure, TS, potential, energy, thirdOrd, ECPEnv,&
+            & qBlockOut, qiBlockOut, nDftbUFunc, UJ, nUJ, iUJ, niUJ, xi)
 
         tStopScc = hasStopFile(fStopScc)
 
@@ -344,6 +346,7 @@ contains
             & rhoPrim(:,iS), neighbourList%iNeighbour, nNeighbourSK, &
             & denseDesc%iAtomStart, iSparseStart, img2CentCell)
       end do
+
       call env%globalTimer%stopTimer(globalTimers%scc)
 
       call env%globalTimer%startTimer(globalTimers%postSCC)
@@ -408,7 +411,7 @@ contains
         call getGradients(env, sccCalc, tEField, tXlbomd, nonSccDeriv, Efield, rhoPrim, ERhoPrim,&
             & qOutput, q0, skHamCont, skOverCont, pRepCont, neighbourList, nNeighbourSK,&
             & nNeighbourRep, species, img2CentCell, iSparseStart, orb, potential, coord, derivs,&
-            & iRhoPrim, thirdOrd, chrgForces, dispersion)
+            & iRhoPrim, thirdOrd, ECPEnv, chrgForces, dispersion)
         if (tLinResp) then
           derivs(:,:) = derivs + excitedDerivs
         end if
@@ -791,7 +794,7 @@ contains
 
   !> Does the operations that are necessary after atomic coordinates change
   subroutine handleCoordinateChange(env, coord0, latVec, invLatVec, species0, mCutOff, repCutOff,&
-      & skCutOff, orb, tPeriodic, sccCalc, dispersion, thirdOrd, img2CentCell, iCellVec,&
+      & skCutOff, orb, tPeriodic, sccCalc, dispersion, thirdOrd, ECPEnv, img2CentCell, iCellVec,&
       & neighbourList, nAllAtom, coord0Fold, coord, species, rCellVec, nAllOrb, nNeighbourSK,&
       & nNeighbourRep, ham, over, H0, rhoPrim, iRhoPrim, iHam, ERhoPrim, iSparseStart)
 
@@ -833,6 +836,9 @@ contains
 
     !> Third order SCC interactions
     type(ThirdOrder), allocatable, intent(inout) :: thirdOrd
+
+    !> Electric Core Potential Environment
+    type(TECPEnv), allocatable, intent(inout) :: ECPEnv
 
     !> image atoms to their equivalent in the central cell
     integer, allocatable, intent(inout) :: img2CentCell(:)
@@ -921,6 +927,9 @@ contains
     end if
     if (allocated(thirdOrd)) then
       call thirdOrd%updateCoords(neighbourList, species)
+    end if
+    if (allocated(ECPEnv)) then
+      call ECPEnv%updateCoords(coord, species)
     end if
 
   end subroutine handleCoordinateChange
@@ -2497,8 +2506,8 @@ contains
   !> Calculates various energy contribution that can potentially update for the same geometry
   subroutine getEnergies(sccCalc, qOrb, q0, chargePerShell, species, tEField, tXlbomd,&
       & tDftbU, tDualSpinOrbit, rhoPrim, H0, orb, neighbourList, nNeighbourSK, img2CentCell,&
-      & iSparseStart, cellVol, extPressure, TS, potential, energy, thirdOrd, qBlock, qiBlock,&
-      & nDftbUFunc, UJ, nUJ, iUJ, niUJ, xi)
+      & iSparseStart, cellVol, extPressure, TS, potential, energy, thirdOrd, ECPEnv, qBlock,&
+      & qiBlock, nDftbUFunc, UJ, nUJ, iUJ, niUJ, xi)
 
     !> SCC module internal variables
     type(TScc), allocatable, intent(in) :: sccCalc
@@ -2566,6 +2575,9 @@ contains
     !> 3rd order settings
     type(ThirdOrder), intent(inout), allocatable :: thirdOrd
 
+    !> Electric Core Potential Environment
+    type(TECPEnv), allocatable, intent(inout) :: ECPEnv
+
     !> block (dual) atomic populations
     real(dp), intent(in), allocatable :: qBlock(:,:,:,:)
 
@@ -2627,6 +2639,11 @@ contains
       energy%e3rd = sum(energy%atom3rd)
     end if
 
+    if (allocated(ECPEnv)) then
+      call ECPEnv%getEnergyPerAtom(energy%atomECPEnv)
+      energy%EECPEnv = sum(energy%atomECPEnv)
+    end if
+
     if (tDftbU) then
       if (allocated(qiBlock)) then
         call E_DFTBU(energy%atomDftbu, qBlock, species, orb, nDFTBUfunc, UJ, nUJ, niUJ, iUJ,&
@@ -2648,7 +2665,7 @@ contains
     energy%atomElec(:) = energy%atomNonSCC + energy%atomSCC + energy%atomSpin + energy%atomDftbu&
         & + energy%atomLS + energy%atomExt + energy%atom3rd
     energy%atomTotal(:) = energy%atomElec + energy%atomRep + energy%atomDisp
-    energy%Etotal = energy%Eelec + energy%Erep + energy%eDisp
+    energy%Etotal = energy%Eelec + energy%Erep + energy%eDisp +energy%EECPEnv
     energy%EMermin = energy%Etotal - sum(TS)
     energy%EGibbs = energy%EMermin + cellVol * extPressure
 
@@ -3882,7 +3899,7 @@ contains
   subroutine getGradients(env, sccCalc, tEField, tXlbomd, nonSccDeriv, Efield, rhoPrim, ERhoPrim,&
       & qOutput, q0, skHamCont, skOverCont, pRepCont, neighbourList, nNeighbourSK, nNeighbourRep,&
       & species, img2CentCell, iSparseStart, orb, potential, coord, derivs, iRhoPrim, thirdOrd,&
-      & chrgForces, dispersion)
+      & ECPEnv, chrgForces, dispersion)
 
     !> Environment settings
     type(TEnvironment), intent(in) :: env
@@ -3959,6 +3976,9 @@ contains
     !> Is 3rd order SCC being used
     type(ThirdOrder), intent(inout), allocatable :: thirdOrd
 
+    !> Electric Core Potential Environment
+    type(TECPEnv), intent(inout), allocatable :: ECPEnv
+
     !> forces on external charges
     real(dp), intent(inout), allocatable :: chrgForces(:,:)
 
@@ -4023,6 +4043,10 @@ contains
         else
           call thirdOrd%addGradientDc(neighbourList, species, coord, img2CentCell, derivs)
         end if
+      end if
+
+      if (allocated(ECPEnv)) then
+        call ECPEnv%addGradientDc(coord, species, derivs)
       end if
 
       if (tEField) then

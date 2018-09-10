@@ -42,6 +42,9 @@ module energies
     !> energy in external field
     real(dp) :: Eext    = 0.0_dp
 
+    !> energy in external field
+    real(dp) :: EECPEnv = 0.0_dp
+
     !> total electronic energy
     real(dp) :: Eelec   = 0.0_dp
 
@@ -93,6 +96,9 @@ module energies
     !> atom resolved external field
     real(dp), allocatable :: atomExt(:)
 
+    !> atom resolved external field
+    real(dp), allocatable :: atomECPEnv(:)
+
     !> atom resolved electronic total
     real(dp), allocatable :: atomElec(:)
 
@@ -135,6 +141,7 @@ contains
     allocate(self%atomLS(nAtom))
     allocate(self%atomDftbu(nAtom))
     allocate(self%atomExt(nAtom))
+    allocate(self%atomECPEnv(nAtom))
     allocate(self%atomElec(nAtom))
     allocate(self%atomDisp(nAtom))
     allocate(self%atom3rd(nAtom))
@@ -146,6 +153,7 @@ contains
     self%atomLS(:) = 0.0_dp
     self%atomDftbu(:) = 0.0_dp
     self%atomExt(:) = 0.0_dp
+    self%atomECPEnv(:) = 0.0_dp
     self%atomElec(:) = 0.0_dp
     self%atomDisp(:) = 0.0_dp
     self%atom3rd(:) = 0.0_dp
@@ -158,6 +166,7 @@ contains
     self%ELS = 0.0_dp
     self%Edftbu = 0.0_dp
     self%Eext = 0.0_dp
+    self%EECPEnv = 0.0_dp
     self%Eelec = 0.0_dp
     self%EDisp = 0.0_dp
     self%E3rd = 0.0_dp

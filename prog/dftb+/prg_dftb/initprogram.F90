@@ -595,6 +595,9 @@ module initprogram
   !> data structure for 3rd order
   type(ThirdOrder), allocatable :: thirdOrd
 
+  !> Data structure for Electric Core Potential Environment
+  type(TECPEnv), allocatable :: ECPEnv
+
   !> Calculate Casida linear response excitations
   logical :: tLinResp
 
@@ -881,9 +884,8 @@ contains
     type(ThirdOrderInp) :: thirdInp
 
     !> Electric Core Potential Environment
-    type(TECPEnv) :: ECPEnv
     type(TECPEnvInp) :: ECPEnvInp
-    logical :: tecp
+    logical :: tEcp
 
     ! PDOS stuff
     integer :: iReg, nAtomRegion, nOrbRegion, iTmp
@@ -1202,17 +1204,6 @@ contains
         call ThirdOrder_init(thirdOrd, thirdInp)
         mCutOff = max(mCutOff, thirdOrd%getCutOff())
       end if
-    end if
-
-    ! Initialize ECPEnv module
-    tecp = input%ctrl%tECPEnv
-    if (tecp) then
-      ECPEnvInp%nAtom = size(orb%nOrbAtom)
-      ECPEnvInp%nSpecies = size(orb%nOrbSpecies)
-      allocate(ECPEnvInp%param(2, size(input%ctrl%ECPEnvParam, dim=2)))
-      ECPEnvInp%param(:,:) = input%ctrl%ECPEnvParam(:,:)
-      ECPEnvInp%envGeo => input%ctrl%ECPEnvGeo
-      call ECPEnv_init(ECPEnv, ECPEnvInp)
     end if
 
     ! Initial coordinates
@@ -1811,6 +1802,21 @@ contains
       end if
       allocate(xlbomdIntegrator)
       call Xlbomd_init(xlbomdIntegrator, input%ctrl%xlbomd, nIneqOrb)
+    end if
+
+    ! Initialize ECPEnv module
+    tEcp = input%ctrl%tEcp
+    if (tEcp) then
+      if (tXlbomd) then
+        call error("ECP Environment does not support XLBOMD")
+      end if
+      ECPEnvInp%nAtom = size(orb%nOrbAtom)
+      ECPEnvInp%nSpecies = size(orb%nOrbSpecies)
+      allocate(ECPEnvInp%param(2, size(input%ctrl%ECPEnvParam, dim=2)))
+      ECPEnvInp%param(:,:) = input%ctrl%ECPEnvParam(:,:)
+      ECPEnvInp%envGeo => input%ctrl%ECPEnvGeo
+      allocate(ECPEnv)
+      call ECPEnv_init(ECPEnv, ECPEnvInp)
     end if
 
     if (tDerivs) then
