@@ -1812,7 +1812,7 @@ contains
       end if
       ECPEnvInp%nAtom = size(orb%nOrbAtom)
       ECPEnvInp%nSpecies = size(orb%nOrbSpecies)
-      allocate(ECPEnvInp%param(2, size(input%ctrl%ECPEnvParam, dim=2)))
+      allocate(ECPEnvInp%param(3, size(input%ctrl%ECPEnvParam, dim=2)))
       ECPEnvInp%param(:,:) = input%ctrl%ECPEnvParam(:,:)
       ECPEnvInp%envGeo => input%ctrl%ECPEnvGeo
       allocate(ECPEnv)

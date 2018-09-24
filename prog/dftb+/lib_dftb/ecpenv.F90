@@ -68,7 +68,7 @@ contains
     this%speciesEnv = inp%envGeo%species  ! Environment species identifier, shape: [nAtEnv]
     allocate(this%coordsEnv(3, this%nAtEnv))
     this%coordsEnv(:,:) = inp%envGeo%coords(:,:)  ! Environment Coordinates, shape: [3, nAtEnv]
-    allocate(this%param(2, this%nSpEnv))
+    allocate(this%param(3, this%nSpEnv))
     this%param(:,:) = inp%param(:,:)   ! ECP Parameters per species, shape: [2, nSpEnv]
 
     allocate(this%potential(this%nAt))
@@ -89,14 +89,18 @@ contains
     !> Species for all atoms, shape: [nAllAtom].
     integer, intent(in) :: species(:)
 
-    integer :: iAt, iAtEnv, iSpEnv
-    real(dp) :: dist
+    integer :: iAt, iAtEnv, iSp, iSpEnv
+    real(dp) :: rr0, alpha, epsilon, dist
 
     do iAt = 1, this%nAt
       do iAtEnv = 1, this%nAtEnv
         dist = sqrt(sum((coords(:, iAt) - this%coordsEnv(:, iAtEnv))**2))
+        iSp = species(iAt)
         iSpEnv = this%speciesEnv(iAtEnv)
-        this%potential(iAt) = this%potential(iAt) + getECP(this%param(:,iSpEnv), dist)
+        epsilon = sqrt(this%param(1, iSp) * this%param(1, iSpEnv))
+        alpha = 0.5_dp * (this%param(2, iSp) + this%param(2, iSpEnv))
+        rr0 = 0.5_dp * (this%param(3, iSp) + this%param(3, iSpEnv))
+        this%potential(iAt) = this%potential(iAt) + getECP(epsilon, alpha, rr0, dist)
       end do
     end do
 
@@ -118,15 +122,19 @@ contains
     !> Gradient on exit.
     real(dp), intent(inout) :: derivs(:,:)
 
-    integer :: iAt, iAtEnv, iSpEnv
-    real(dp) :: dist, tmp
+    integer :: iAt, iAtEnv, iSp, iSpEnv
+    real(dp) :: rr0, alpha, epsilon, tmpR1, dist
 
     do iAt = 1, this%nAt
       do iAtEnv = 1, this%nAtEnv
         dist = sqrt(sum((coords(:, iAt) - this%coordsEnv(:, iAtEnv))**2))
+        iSp = species(iAt)
         iSpEnv = this%speciesEnv(iAtEnv)
-        tmp = getECPDeriv(this%param(:,iSpEnv), dist)
-        derivs(:, iAt) = derivs(:, iAt) + tmp * (coords(:, iAt) - this%coordsEnv(:, iAtEnv))
+        epsilon = sqrt(this%param(1, iSp) * this%param(1, iSpEnv))
+        alpha = 0.5_dp * (this%param(2, iSp) + this%param(2, iSpEnv))
+        rr0 = 0.5_dp * (this%param(3, iSp) + this%param(3, iSpEnv))
+        tmpR1 = getECPDeriv(epsilon, alpha, rr0, dist)
+        derivs(:, iAt) = derivs(:, iAt) + tmpR1 * (coords(:, iAt) - this%coordsEnv(:, iAtEnv))
       end do
     end do
 
@@ -141,8 +149,6 @@ contains
     @:ASSERT(size(energyPerAtom) == this%nAt)
 
     energyPerAtom(:) = this%potential(:)
-    print *, "ECPEnv Potential:"
-    print *, this%potential(:)
 
   end subroutine getEnergyPerAtom
 
@@ -151,27 +157,39 @@ contains
 
 
   !> Gets a effective core potential value
-  function getECP(param, dist) result(res)
-    real(dp), intent(in) :: param(:)
+  function getECP(epsilon, alpha, rr0, dist) result(res)
+    real(dp), intent(in) :: epsilon
+    real(dp), intent(in) :: alpha
+    real(dp), intent(in) :: rr0
     real(dp), intent(in) :: dist
+    real(dp) :: tmpR1, tmpR2
     real(dp) :: res
 
-    @:ASSERT(size(param, dim=1) == 2)
-
-    res = param(1) * exp(-param(2) * dist)
+    if (rr0 <= tolSameDist) then
+      res = 0.0_dp
+    else if (alpha <= tolSameDist) then
+      res = -epsilon
+    else
+      tmpR1 = epsilon / (alpha - 6.0_dp)
+      tmpR2 = alpha - alpha * dist / rr0
+      res = tmpR1 * (6.0_dp * exp(tmpR2) - alpha * (rr0 / dist)**6)
+    end if
 
   end function getECP
 
 
   !> Gets a effective core potential value
-  function getECPDeriv(param, dist) result(res)
-    real(dp), intent(in) :: param(:)
+  function getECPDeriv(epsilon, alpha, rr0, dist) result(res)
+    real(dp), intent(in) :: epsilon
+    real(dp), intent(in) :: alpha
+    real(dp), intent(in) :: rr0
     real(dp), intent(in) :: dist
+    real(dp) :: tmpR1, tmpR2
     real(dp) :: res
 
-    @:ASSERT(size(param, dim=1) == 2)
-
-    res = param(1) * param(2) / dist * exp(-param(2) * dist)
+    tmpR1 = alpha * (1.0_dp - dist / rr0)
+    tmpR2 = epsilon * 6.0_dp * alpha / dist / rr0
+    res = tmpR2 * (rr0**7 / dist**7 - 1.0_dp / (alpha - 6.0_dp) * exp(tmpR1))
 
   end function getECPDeriv
 

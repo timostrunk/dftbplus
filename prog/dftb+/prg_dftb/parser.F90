@@ -2776,11 +2776,11 @@ contains
     end if
     !! Read parameters
     call getChild(node, 'Parameters', child, requested=.true.)
-    allocate(input%ECPEnvParam(2, input%ECPEnvGeo%nSpecies))
+    allocate(input%ECPEnvParam(3, input%ECPEnvGeo%nSpecies))
     input%ECPEnvParam(:,:) = 0.0_dp
     do iSp1 = 1, input%ECPEnvGeo%nSpecies
       call getChildValue(child, input%ECPEnvGeo%speciesNames(iSp1),&
-          & input%ECPEnvParam(1:2, iSp1))
+          & input%ECPEnvParam(1:3, iSp1))
     end do
 
   end subroutine readECPEnv

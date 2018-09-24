@@ -3608,6 +3608,7 @@ contains
     type(TEnergies), intent(in) :: energy
 
     write(stdOut, *)
+    write(stdOut, format2U) "Env.  Poten.", energy%EECPEnv,"H", Hartree__eV * energy%EECPEnv,"eV"
     write(stdOut, format2U) "Total Energy", energy%Etotal,"H", Hartree__eV * energy%Etotal,"eV"
     write(stdOut, format2U) "Total Mermin free energy", energy%EMermin, "H",&
         & Hartree__eV * energy%EMermin," eV"
