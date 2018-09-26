@@ -72,7 +72,6 @@ contains
     this%param(:,:) = inp%param(:,:)   ! ECP Parameters per species, shape: [2, nSpEnv]
 
     allocate(this%potential(this%nAt))
-    this%potential(:) = 0.0_dp
 
   end subroutine ECPEnv_init
 
@@ -92,6 +91,7 @@ contains
     integer :: iAt, iAtEnv, iSp, iSpEnv
     real(dp) :: rr0, alpha, epsilon, dist
 
+    this%potential(:) = 0.0_dp
     do iAt = 1, this%nAt
       do iAtEnv = 1, this%nAtEnv
         dist = sqrt(sum((coords(:, iAt) - this%coordsEnv(:, iAtEnv))**2))
@@ -122,9 +122,12 @@ contains
     !> Gradient on exit.
     real(dp), intent(inout) :: derivs(:,:)
 
-    integer :: iAt, iAtEnv, iSp, iSpEnv
+    integer :: iAt, iAtEnv, iSp, iSpEnv, ii
     real(dp) :: rr0, alpha, epsilon, tmpR1, dist
+    real(dp) :: eperatom(this%nAt), tmpR2, tmpgrad(3,this%nAt)
+    real(dp) :: tmpVec1(3), tmpVec2(3), tmpCoord(3,this%nAt)
 
+    tmpgrad(:, :) = 0.0_dp
     do iAt = 1, this%nAt
       do iAtEnv = 1, this%nAtEnv
         dist = sqrt(sum((coords(:, iAt) - this%coordsEnv(:, iAtEnv))**2))
@@ -134,9 +137,11 @@ contains
         alpha = 0.5_dp * (this%param(2, iSp) + this%param(2, iSpEnv))
         rr0 = 0.5_dp * (this%param(3, iSp) + this%param(3, iSpEnv))
         tmpR1 = getECPDeriv(epsilon, alpha, rr0, dist)
-        derivs(:, iAt) = derivs(:, iAt) + tmpR1 * (coords(:, iAt) - this%coordsEnv(:, iAtEnv))
+        tmpgrad(:, iAt) = tmpgrad(:, iAt) - tmpR1 * (coords(:, iAt) - this%coordsEnv(:, iAtEnv))
       end do
     end do
+
+    derivs(:, :) = derivs(:, :) - tmpgrad(:, :)
 
   end subroutine addGradientDC
 
@@ -187,9 +192,9 @@ contains
     real(dp) :: tmpR1, tmpR2
     real(dp) :: res
 
-    tmpR1 = alpha * (1.0_dp - dist / rr0)
-    tmpR2 = epsilon * 6.0_dp * alpha / dist / rr0
-    res = tmpR2 * (rr0**7 / dist**7 - 1.0_dp / (alpha - 6.0_dp) * exp(tmpR1))
+    tmpR1 = 6.0_dp * epsilon * alpha / (alpha - 6.0_dp)
+    tmpR2 = alpha - alpha * dist / rr0
+    res = tmpR1 * (rr0**6 / dist**8 - exp(tmpR2) / rr0 / dist)
 
   end function getECPDeriv
 
