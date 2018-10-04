@@ -1943,7 +1943,7 @@ contains
         call getChildValue(node, "ECPEnv", value, child=child, &
             &allowEmptyValue=.true., dummyValue=.false.)
         if (associated(value)) then
-          call readECPENv(child, ctrl)
+          call readECPENv(child, geo, ctrl)
         end if
       end if
     end if
@@ -2748,10 +2748,13 @@ contains
 
 
   !> Reads Electric Core Potential Environment input
-  subroutine readECPEnv(node, input)
+  subroutine readECPEnv(node, geo, input)
 
     !> Node to parse
     type(fnode), pointer :: node
+
+    !> Central geometry
+    type(TGeometry) :: geo
 
     !> ECPEnv data on exit
     type(control), intent(inout) :: input
@@ -2774,13 +2777,18 @@ contains
     if (input%ECPEnvGeo%tPeriodic) then
       call error("Periodic ECPEnv geometries are not supported!")
     end if
-    !! Read parameters
+    !! Read parameters for environemnt
     call getChild(node, 'Parameters', child, requested=.true.)
     allocate(input%ECPEnvParam(3, input%ECPEnvGeo%nSpecies))
+    allocate(input%ECPInnerParam(3, geo%nSpecies))
     input%ECPEnvParam(:,:) = 0.0_dp
     do iSp1 = 1, input%ECPEnvGeo%nSpecies
       call getChildValue(child, input%ECPEnvGeo%speciesNames(iSp1),&
           & input%ECPEnvParam(1:3, iSp1))
+    end do
+    do iSp1 = 1, geo%nSpecies
+      call getChildValue(child, geo%speciesNames(iSp1),&
+          & input%ECPInnerParam(1:3, iSp1))
     end do
 
   end subroutine readECPEnv

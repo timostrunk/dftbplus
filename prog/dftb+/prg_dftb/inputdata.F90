@@ -405,6 +405,7 @@ module inputdata_module
     !> Electric Core Potential Environment
     logical ::  tecp
     real(dp), allocatable :: ECPEnvParam(:,:)
+    real(dp), allocatable :: ECPInnerParam(:,:)
     type(TGeometry) :: ECPEnvGeo
 
 

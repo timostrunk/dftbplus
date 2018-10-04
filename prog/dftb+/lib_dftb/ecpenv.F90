@@ -26,7 +26,8 @@ module ecpenv
     type(TGeometry), pointer :: envGeo
 
     !> ECP Parameters
-    real(dp), allocatable :: param(:,:)
+    real(dp), allocatable :: paramEnv(:,:)
+    real(dp), allocatable :: paramInner(:,:)
 
     !> Inner molecule information
     integer :: nAtom, nSpecies
@@ -39,7 +40,8 @@ module ecpenv
     integer :: nAt, nSp  ! Number of inner atoms and different species
     integer :: nAtEnv, nSpEnv  ! Number of environment atoms and different species
     integer, allocatable :: speciesEnv(:)
-    real(dp), allocatable :: param(:,:)
+    real(dp), allocatable :: paramEnv(:,:)
+    real(dp), allocatable :: paramInner(:,:)
     real(dp), allocatable :: coordsEnv(:,:)
     real(dp), allocatable :: potential(:)
   contains
@@ -68,8 +70,10 @@ contains
     this%speciesEnv = inp%envGeo%species  ! Environment species identifier, shape: [nAtEnv]
     allocate(this%coordsEnv(3, this%nAtEnv))
     this%coordsEnv(:,:) = inp%envGeo%coords(:,:)  ! Environment Coordinates, shape: [3, nAtEnv]
-    allocate(this%param(3, this%nSpEnv))
-    this%param(:,:) = inp%param(:,:)   ! ECP Parameters per species, shape: [2, nSpEnv]
+    allocate(this%paramEnv(3, this%nSpEnv))
+    this%paramEnv(:,:) = inp%paramEnv(:,:)   ! ECP Parameters per species, shape: [2, nSpEnv]
+    allocate(this%paramInner(3, this%nSp))
+    this%paramInner(:,:) = inp%paramInner(:,:)   ! ECP Parameters per species, shape: [2, nSpEnv]
 
     allocate(this%potential(this%nAt))
 
@@ -97,9 +101,9 @@ contains
         dist = sqrt(sum((coords(:, iAt) - this%coordsEnv(:, iAtEnv))**2))
         iSp = species(iAt)
         iSpEnv = this%speciesEnv(iAtEnv)
-        epsilon = sqrt(this%param(1, iSp) * this%param(1, iSpEnv))
-        alpha = 0.5_dp * (this%param(2, iSp) + this%param(2, iSpEnv))
-        rr0 = 0.5_dp * (this%param(3, iSp) + this%param(3, iSpEnv))
+        epsilon = sqrt(this%paramInner(1, iSp) * this%paramEnv(1, iSpEnv))
+        alpha = 0.5_dp * (this%paramInner(2, iSp) + this%paramEnv(2, iSpEnv))
+        rr0 = 0.5_dp * (this%paramInner(3, iSp) + this%paramEnv(3, iSpEnv))
         this%potential(iAt) = this%potential(iAt) + getECP(epsilon, alpha, rr0, dist)
       end do
     end do
@@ -133,9 +137,9 @@ contains
         dist = sqrt(sum((coords(:, iAt) - this%coordsEnv(:, iAtEnv))**2))
         iSp = species(iAt)
         iSpEnv = this%speciesEnv(iAtEnv)
-        epsilon = sqrt(this%param(1, iSp) * this%param(1, iSpEnv))
-        alpha = 0.5_dp * (this%param(2, iSp) + this%param(2, iSpEnv))
-        rr0 = 0.5_dp * (this%param(3, iSp) + this%param(3, iSpEnv))
+        epsilon = sqrt(this%paramInner(1, iSp) * this%paramEnv(1, iSpEnv))
+        alpha = 0.5_dp * (this%paramInner(2, iSp) + this%paramEnv(2, iSpEnv))
+        rr0 = 0.5_dp * (this%paramInner(3, iSp) + this%paramEnv(3, iSpEnv))
         tmpR1 = getECPDeriv(epsilon, alpha, rr0, dist)
         tmpgrad(:, iAt) = tmpgrad(:, iAt) - tmpR1 * (coords(:, iAt) - this%coordsEnv(:, iAtEnv))
       end do
