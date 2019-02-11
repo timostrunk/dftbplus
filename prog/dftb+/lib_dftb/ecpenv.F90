@@ -42,6 +42,7 @@ module ecpenv
     integer, allocatable :: speciesEnv(:)
     real(dp), allocatable :: paramEnv(:,:)
     real(dp), allocatable :: paramInner(:,:)
+    real(dp), allocatable :: paramLJ(:,:,:)
     real(dp), allocatable :: coordsEnv(:,:)
     real(dp), allocatable :: potential(:)
   contains
@@ -70,11 +71,12 @@ contains
     this%speciesEnv = inp%envGeo%species  ! Environment species identifier, shape: [nAtEnv]
     allocate(this%coordsEnv(3, this%nAtEnv))
     this%coordsEnv(:,:) = inp%envGeo%coords(:,:)  ! Environment Coordinates, shape: [3, nAtEnv]
-    allocate(this%paramEnv(3, this%nSpEnv))
-    this%paramEnv(:,:) = inp%paramEnv(:,:)   ! ECP Parameters per species, shape: [2, nSpEnv]
-    allocate(this%paramInner(3, this%nSp))
-    this%paramInner(:,:) = inp%paramInner(:,:)   ! ECP Parameters per species, shape: [2, nSpEnv]
-
+    allocate(this%paramEnv(4, this%nSpEnv))
+    this%paramEnv(:,:) = inp%paramEnv(:,:)   ! ECP Parameters per species, shape: [4, nSpEnv]
+    allocate(this%paramInner(4, this%nSp))
+    this%paramInner(:,:) = inp%paramInner(:,:)   ! ECP Parameters per species, shape: [4, nSp]
+    allocate(this%paramLJ(3, this%nSp, this%nSpEnv))  ! Switch parameters, shape [3, nSp, nSpEnv]
+    call initLennardJones(this)
     allocate(this%potential(this%nAt))
 
   end subroutine ECPEnv_init
@@ -93,7 +95,7 @@ contains
     integer, intent(in) :: species(:)
 
     integer :: iAt, iAtEnv, iSp, iSpEnv
-    real(dp) :: rr0, alpha, epsilon, dist
+    real(dp) :: dist, rr0, alpha, epsilon, rIP, lj1, lj2, tmpR1
 
     this%potential(:) = 0.0_dp
     do iAt = 1, this%nAt
@@ -104,7 +106,11 @@ contains
         epsilon = sqrt(this%paramInner(1, iSp) * this%paramEnv(1, iSpEnv))
         alpha = 0.5_dp * (this%paramInner(2, iSp) + this%paramEnv(2, iSpEnv))
         rr0 = 0.5_dp * (this%paramInner(3, iSp) + this%paramEnv(3, iSpEnv))
-        this%potential(iAt) = this%potential(iAt) + getECP(epsilon, alpha, rr0, dist)
+        rIP = this%paramLJ(1, iSp, iSpEnv)
+        lj1 = this%paramLJ(2, iSp, iSpEnv)
+        lj2 = this%paramLJ(3, iSp, iSpEnv)
+        tmpR1 = getECP(dist, epsilon, alpha, rr0, rIP, lj1, lj2)
+        this%potential(iAt) = this%potential(iAt) + tmpR1
       end do
     end do
 
@@ -127,9 +133,8 @@ contains
     real(dp), intent(inout) :: derivs(:,:)
 
     integer :: iAt, iAtEnv, iSp, iSpEnv, ii
-    real(dp) :: rr0, alpha, epsilon, tmpR1, dist
-    real(dp) :: eperatom(this%nAt), tmpR2, tmpgrad(3,this%nAt)
-    real(dp) :: tmpVec1(3), tmpVec2(3), tmpCoord(3,this%nAt)
+    real(dp) :: dist, rr0, alpha, epsilon, rIP, lj1, tmpR1
+    real(dp) :: eperatom(this%nAt), tmpgrad(3,this%nAt)
 
     tmpgrad(:, :) = 0.0_dp
     do iAt = 1, this%nAt
@@ -140,7 +145,9 @@ contains
         epsilon = sqrt(this%paramInner(1, iSp) * this%paramEnv(1, iSpEnv))
         alpha = 0.5_dp * (this%paramInner(2, iSp) + this%paramEnv(2, iSpEnv))
         rr0 = 0.5_dp * (this%paramInner(3, iSp) + this%paramEnv(3, iSpEnv))
-        tmpR1 = getECPDeriv(epsilon, alpha, rr0, dist)
+        rIP = this%paramLJ(1, iSp, iSpEnv)
+        lj1 = this%paramLJ(2, iSp, iSpEnv)
+        tmpR1 = getECPDeriv(dist, epsilon, alpha, rr0, rIP, lj1)
         tmpgrad(:, iAt) = tmpgrad(:, iAt) - tmpR1 * (coords(:, iAt) - this%coordsEnv(:, iAtEnv))
       end do
     end do
@@ -164,41 +171,85 @@ contains
 
 ! Private routines
 
+  !> Creates parameters for inflection point LJ switch
+  subroutine initLennardJones(this)
+
+    !> Instance.
+    class(TECPEnv), intent(inout) :: this
+
+    integer :: iSp, iSpEnv
+    real(dp) :: rIP  ! Inflection point
+    real(dp) :: epsilon, alpha, rr0
+    real(dp) :: potIP, potIPDeriv  ! Buckingham potential (and deriv) at rIP
+
+    do iSp = 1, this%nSp
+      do iSpEnv = 1, this%nSpEnv
+        if (this%paramInner(4, iSp) >= this%paramEnv(4, iSpEnv)) then
+          rIP = this%paramInner(4, iSp)
+        else
+          rIP = this%paramEnv(4, iSp)
+        end if
+        epsilon = sqrt(this%paramInner(1, iSp) * this%paramEnv(1, iSpEnv))
+        alpha = 0.5_dp * (this%paramInner(2, iSp) + this%paramEnv(2, iSpEnv))
+        rr0 = 0.5_dp * (this%paramInner(3, iSp) + this%paramEnv(3, iSpEnv))
+        potIP = getECP(rIP, epsilon, alpha, rr0, 0.0_dp, 0.0_dp, 0.0_dp)
+        potIPDeriv = getECPDeriv(rIP, epsilon, alpha, rr0, 0.0_dp, 0.0_dp)
+        this%paramLJ(1, iSp, iSpEnv) = rIP
+        this%paramLJ(2, iSp, iSpEnv) = - rIP**13 * potIPDeriv / 12.0_dp
+        this%paramLJ(3, iSp, iSpEnv) = potIP + rIP * potIPDeriv / 12.0_dp
+      end do
+    end do
+
+  end subroutine initLennardJones
+
 
   !> Gets a effective core potential value
-  function getECP(epsilon, alpha, rr0, dist) result(res)
+  function getECP(dist, epsilon, alpha, rr0, rIP, lj1, lj2) result(res)
+    real(dp), intent(in) :: dist
     real(dp), intent(in) :: epsilon
     real(dp), intent(in) :: alpha
     real(dp), intent(in) :: rr0
-    real(dp), intent(in) :: dist
+    real(dp), intent(in) :: rIP
+    real(dp), intent(in) :: lj1
+    real(dp), intent(in) :: lj2
     real(dp) :: tmpR1, tmpR2
     real(dp) :: res
 
-    if (rr0 <= tolSameDist) then
-      res = 0.0_dp
-    else if (alpha <= tolSameDist) then
-      res = -epsilon
+    if (dist < rIP) then  ! Use Lennard-Jones potential
+      res = lj1 / dist**12 + lj2
     else
-      tmpR1 = epsilon / (alpha - 6.0_dp)
-      tmpR2 = alpha - alpha * dist / rr0
-      res = tmpR1 * (6.0_dp * exp(tmpR2) - alpha * (rr0 / dist)**6)
+      if (rr0 <= tolSameDist) then
+        res = 0.0_dp
+      else if (alpha <= tolSameDist) then
+        res = -epsilon
+      else  ! Use Buckingham potential
+        tmpR1 = epsilon / (alpha - 6.0_dp)
+        tmpR2 = alpha - alpha * dist / rr0
+        res = tmpR1 * (6.0_dp * exp(tmpR2) - alpha * (rr0 / dist)**6)
+      end if
     end if
 
   end function getECP
 
 
-  !> Gets a effective core potential value
-  function getECPDeriv(epsilon, alpha, rr0, dist) result(res)
+  !> Gets the derivative of the  effective core potential
+  function getECPDeriv(dist, epsilon, alpha, rr0, rIP, lj1) result(res)
+    real(dp), intent(in) :: dist
     real(dp), intent(in) :: epsilon
     real(dp), intent(in) :: alpha
     real(dp), intent(in) :: rr0
-    real(dp), intent(in) :: dist
+    real(dp), intent(in) :: rIP
+    real(dp), intent(in) :: lj1
     real(dp) :: tmpR1, tmpR2
     real(dp) :: res
 
-    tmpR1 = 6.0_dp * epsilon * alpha / (alpha - 6.0_dp)
-    tmpR2 = alpha - alpha * dist / rr0
-    res = tmpR1 * (rr0**6 / dist**8 - exp(tmpR2) / rr0 / dist)
+    if (dist < rIP) then  ! Use Lennard-Jones derivative
+      res = -12.0_dp * lj1 / dist**13
+    else  ! Use Buckingham derivative
+      tmpR1 = 6.0_dp * epsilon * alpha / (alpha - 6.0_dp)
+      tmpR2 = alpha - alpha * dist / rr0
+      res = tmpR1 * (rr0**6 / dist**8 - exp(tmpR2) / rr0 / dist)
+    end if
 
   end function getECPDeriv
 
